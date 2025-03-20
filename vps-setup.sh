@@ -10,8 +10,33 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Starting VPS setup...${NC}"
 
-# 1. Update and upgrade packages silently
+# Function to wait for apt lock
+wait_for_apt() {
+    local timeout=120  # Wait up to 120 seconds
+    local counter=0
+    while [ -f /var/lib/dpkg/lock-frontend ] || [ -f /var/lib/apt/lists/lock ] || [ -f /var/cache/apt/archives/lock ]; do
+        if [ $counter -ge $timeout ]; then
+            echo -e "${RED}Error: Could not acquire apt lock after $timeout seconds. Another process may be using apt.${NC}"
+            echo "Please check for running apt processes with 'ps aux | grep apt' and resolve the conflict."
+            exit 1
+        fi
+        echo "Waiting for apt lock to be released... ($counter/$timeout seconds)"
+        sleep 1
+        counter=$((counter + 1))
+    done
+}
+
+# 1. Check and fix dpkg interruptions
+echo "Checking for dpkg interruptions..."
+if ! sudo dpkg --configure -a; then
+    echo -e "${RED}Error: Failed to resolve dpkg interruptions. Please run 'sudo dpkg --configure -a' manually and check for errors.${NC}"
+    exit 1
+fi
+
+# 2. Update and upgrade packages silently
 echo "Updating and upgrading packages..."
+# Wait for apt lock to be released
+wait_for_apt
 # Set noninteractive mode to avoid prompts
 export DEBIAN_FRONTEND=noninteractive
 # Pre-configure dpkg to keep the current configuration files
@@ -20,25 +45,49 @@ sudo apt update
 # Use -y for automatic yes, and -o options to avoid config file prompts
 sudo apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
-# 2. Install Docker
+# 3. Install Docker
 echo "Installing Docker..."
 curl -fsSL https://get.docker.com | sh
 
-# 3. Install Tailscale and prompt for auth key
+# 4. Install Tailscale
 echo "Installing Tailscale..."
-echo -e "${GREEN}Please enter your Tailscale auth key:${NC}"
-read -p "Auth key: " TAILSCALE_AUTH_KEY
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes
 
-# 4. Create directory for wg-easy
+# Check if TAILSCALE_AUTH_KEY is provided as an environment variable
+if [ -z "$TAILSCALE_AUTH_KEY" ]; then
+    # If running interactively, prompt for the auth key
+    if [ -t 0 ]; then
+        echo -e "${GREEN}Please enter your Tailscale auth key:${NC}"
+        read -p "Auth key: " TAILSCALE_AUTH_KEY
+    else
+        echo -e "${RED}Error: TAILSCALE_AUTH_KEY environment variable not set and script is running non-interactively.${NC}"
+        echo "Please set the TAILSCALE_AUTH_KEY environment variable and try again."
+        echo "Example: TAILSCALE_AUTH_KEY=your-auth-key curl -fsSL <script-url> | sh"
+        exit 1
+    fi
+fi
+
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes=true
+
+# 5. Create directory for wg-easy
 echo "Creating directory structure..."
 sudo mkdir -p /opt/wg-easy
 cd /opt/wg-easy
 
-# 5. Prompt for server IP/domain and create compose file
-echo -e "${GREEN}Please enter your server's public domain name or IP:${NC}"
-read -p "Server domain/IP: " SERVER_HOST
+# 6. Get server IP/domain
+# Check if SERVER_HOST is provided as an environment variable
+if [ -z "$SERVER_HOST" ]; then
+    # If running interactively, prompt for the server host
+    if [ -t 0 ]; then
+        echo -e "${GREEN}Please enter your server's public domain name or IP:${NC}"
+        read -p "Server domain/IP: " SERVER_HOST
+    else
+        echo -e "${RED}Error: SERVER_HOST environment variable not set and script is running non-interactively.${NC}"
+        echo "Please set the SERVER_HOST environment variable and try again."
+        echo "Example: SERVER_HOST=your-server-ip curl -fsSL <script-url> | sh"
+        exit 1
+    fi
+fi
 
 echo "Creating docker-compose file..."
 cat > docker-compose.yml << EOF
@@ -71,7 +120,7 @@ EOF
 # Ensure the wg-easy volume directory exists
 mkdir -p ~/.wg-easy
 
-# Run the container
+# 7. Run the container
 echo "Starting wg-easy container..."
 docker compose up -d
 

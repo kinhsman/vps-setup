@@ -10,9 +10,15 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}Starting VPS setup...${NC}"
 
-# 1. Update and upgrade packages
+# 1. Update and upgrade packages silently
 echo "Updating and upgrading packages..."
-sudo apt update && sudo apt upgrade -y
+# Set noninteractive mode to avoid prompts
+export DEBIAN_FRONTEND=noninteractive
+# Pre-configure dpkg to keep the current configuration files
+echo "openssh-server openssh-server/permit-root-login boolean true" | debconf-set-selections
+sudo apt update
+# Use -y for automatic yes, and -o options to avoid config file prompts
+sudo apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
 # 2. Install Docker
 echo "Installing Docker..."
@@ -23,7 +29,7 @@ echo "Installing Tailscale..."
 echo -e "${GREEN}Please enter your Tailscale auth key:${NC}"
 read -p "Auth key: " TAILSCALE_AUTH_KEY
 curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes
+sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes=true
 
 # 4. Create directory for wg-easy
 echo "Creating directory structure..."

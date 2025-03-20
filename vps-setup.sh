@@ -1,9 +1,10 @@
 #!/bin/bash
 
+set -e  # Exit on error
+
 # Update and upgrade system packages
 echo "Updating system packages..."
-export DEBIAN_FRONTEND=noninteractive
-apt update && apt -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y
+apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y
 
 # Install required dependencies
 echo "Installing required dependencies..."
@@ -20,10 +21,22 @@ fi
 # Ensure Docker is running
 systemctl is-active --quiet docker || systemctl start docker
 
-# Prompt user for server domain/IP
+# Ensure Docker Compose (plugin) is installed
+if ! docker compose version &> /dev/null; then
+    echo "Docker Compose (plugin) is missing. Installing..."
+    apt install -y docker-compose-plugin
+else
+    echo "Docker Compose (plugin) is already installed."
+fi
+
+# Prompt user for input
 read -p "Enter the public domain name or IP of the VPS: " WG_HOST
-read -s -p "Enter your Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+echo "Enter your Cloudflare API Token (input will be hidden):"
+read -s -p "Token: " CLOUDFLARE_API_TOKEN
 echo -e "\n"  # Ensure newline after silent input
+
+# Debugging (remove this after verifying inputs)
+echo "DEBUG: WG_HOST=${WG_HOST}, CLOUDFLARE_API_TOKEN=******"
 
 # Create necessary directory for Docker Compose
 mkdir -p /opt/wg-easy/wg-data
@@ -69,7 +82,7 @@ services:
       IP6_PROVIDER: 'none'
 EOF
 
-# Start the Docker Compose service
+# Start the Docker Compose service using the new command
 echo "Starting wg-easy container..."
 docker compose up -d
 

@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e  # Exit on error
-
 # Update and upgrade system packages
 echo "Updating system packages..."
 export DEBIAN_FRONTEND=noninteractive
@@ -11,27 +9,29 @@ apt update && apt -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--for
 echo "Installing required dependencies..."
 apt install -y curl
 
-# Install Docker
-echo "Installing Docker..."
-curl -fsSL https://get.docker.com | sh
+# Install Docker if not already installed
+if ! command -v docker &> /dev/null; then
+    echo "Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+else
+    echo "Docker is already installed."
+fi
 
-# Install Docker Compose
-echo "Installing Docker Compose..."
-apt install -y docker-compose-plugin
+# Ensure Docker is running
+systemctl is-active --quiet docker || systemctl start docker
 
-# Prompt user for VPS domain and Cloudflare API token
+# Prompt user for server domain/IP
 read -p "Enter the public domain name or IP of the VPS: " WG_HOST
 read -s -p "Enter your Cloudflare API Token: " CLOUDFLARE_API_TOKEN
-echo ""  # Newline after silent input
+echo -e "\n"  # Ensure newline after silent input
 
 # Create necessary directory for Docker Compose
-mkdir -p /opt/wg-easy
+mkdir -p /opt/wg-easy/wg-data
+chmod 700 /opt/wg-easy/wg-data
 cd /opt/wg-easy || exit
 
 # Create docker-compose.yml file
 cat <<EOF > docker-compose.yml
-version: '3'
-
 services:
   wg-easy:
     container_name: wg-easy
@@ -45,7 +45,7 @@ services:
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com
     volumes:
-      - ~/.wg-easy:/etc/wireguard
+      - /opt/wg-easy/wg-data:/etc/wireguard
     ports:
       - "65222:65222/udp"
       - "51821:51821/tcp"
@@ -55,7 +55,7 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-
+ 
   cloudflare-ddns:
     image: favonia/cloudflare-ddns:latest
     network_mode: host
@@ -70,7 +70,7 @@ services:
 EOF
 
 # Start the Docker Compose service
-echo "Starting containers..."
-docker compose up -d --force-recreate
+echo "Starting wg-easy container..."
+docker-compose up -d
 
-echo "WireGuard Easy and Cloudflare DDNS setup complete!"
+echo "WireGuard Easy setup complete!"

@@ -26,14 +26,19 @@ wait_for_apt() {
     done
 }
 
-# 1. Check and fix dpkg interruptions
+# 1. Stop automatic updates to prevent apt lock conflicts
+echo "Stopping automatic updates (if running)..."
+sudo systemctl stop unattended-upgrades || true
+sudo systemctl disable unattended-upgrades || true
+
+# 2. Check and fix dpkg interruptions
 echo "Checking for dpkg interruptions..."
 if ! sudo dpkg --configure -a; then
     echo -e "${RED}Error: Failed to resolve dpkg interruptions. Please run 'sudo dpkg --configure -a' manually and check for errors.${NC}"
     exit 1
 fi
 
-# 2. Update and upgrade packages silently
+# 3. Update and upgrade packages silently
 echo "Updating and upgrading packages..."
 # Wait for apt lock to be released
 wait_for_apt
@@ -45,11 +50,11 @@ sudo apt update
 # Use -y for automatic yes, and -o options to avoid config file prompts
 sudo apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
-# 3. Install Docker
+# 4. Install Docker
 echo "Installing Docker..."
 curl -fsSL https://get.docker.com | sh
 
-# 4. Install Tailscale
+# 5. Install Tailscale
 echo "Installing Tailscale..."
 
 # Check if TAILSCALE_AUTH_KEY is provided as an environment variable
@@ -69,12 +74,12 @@ fi
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes=true
 
-# 5. Create directory for wg-easy
+# 6. Create directory for wg-easy
 echo "Creating directory structure..."
 sudo mkdir -p /opt/wg-easy
 cd /opt/wg-easy
 
-# 6. Get server IP/domain
+# 7. Get server IP/domain
 # Check if SERVER_HOST is provided as an environment variable
 if [ -z "$SERVER_HOST" ]; then
     # If running interactively, prompt for the server host
@@ -120,7 +125,7 @@ EOF
 # Ensure the wg-easy volume directory exists
 mkdir -p ~/.wg-easy
 
-# 7. Run the container
+# 8. Run the container
 echo "Starting wg-easy container..."
 docker compose up -d
 
@@ -128,3 +133,8 @@ echo -e "${GREEN}Setup complete!${NC}"
 echo "wg-easy should now be running on port 51821"
 echo "Access it at: http://${SERVER_HOST}:51821"
 echo "Default password is encrypted in the config - use the corresponding plaintext password"
+
+# 9. Re-enable automatic updates (optional)
+echo "Re-enabling automatic updates..."
+sudo systemctl enable unattended-upgrades || true
+sudo systemctl start unattended-upgrades || true

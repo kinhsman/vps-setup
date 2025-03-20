@@ -32,7 +32,7 @@ services:
     environment:
       - LANG=en
       - WG_HOST=${WG_HOST}
-      - PASSWORD_HASH=$2a$12$U4fGrxUj/5tWxiloYKwAju8/ivq8bvyuCcur5Ffhr22UrOuLsl4li
+      - PASSWORD_HASH='$2a$12$686FwPj1VdtVYy2cR3aUF..8TTTBs.9eorN1FL/l1/duHazJa.hVS'
       - PORT=51821
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com

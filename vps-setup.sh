@@ -4,7 +4,8 @@ set -e  # Exit on error
 
 # Update and upgrade system packages
 echo "Updating system packages..."
-apt update && apt upgrade -y
+export DEBIAN_FRONTEND=noninteractive
+apt update && apt -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y
 
 # Install required dependencies
 echo "Installing required dependencies..."

@@ -71,6 +71,6 @@ EOF
 
 # Start the Docker Compose service
 echo "Starting wg-easy container..."
-docker-compose up -d
+docker compose up -d
 
 echo "WireGuard Easy setup complete!"

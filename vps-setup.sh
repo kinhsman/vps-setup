@@ -2,6 +2,15 @@
 
 set -e  # Exit on error
 
+# Prompt user for input at the very beginning
+read -p "Enter the public domain name or IP of the VPS: " WG_HOST
+echo "Enter your Cloudflare API Token (input will be hidden):"
+read -s -p "Token: " CLOUDFLARE_API_TOKEN
+echo -e "\n"  # Ensure newline after silent input
+
+# Debugging (remove this after verifying inputs)
+echo "DEBUG: WG_HOST=${WG_HOST}, CLOUDFLARE_API_TOKEN=******"
+
 # Update and upgrade system packages
 echo "Updating system packages..."
 apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y
@@ -28,15 +37,6 @@ if ! docker compose version &> /dev/null; then
 else
     echo "Docker Compose (plugin) is already installed."
 fi
-
-# Prompt user for input
-read -p "Enter the public domain name or IP of the VPS: " WG_HOST
-echo "Enter your Cloudflare API Token (input will be hidden):"
-read -s -p "Token: " CLOUDFLARE_API_TOKEN
-echo -e "\n"  # Ensure newline after silent input
-
-# Debugging (remove this after verifying inputs)
-echo "DEBUG: WG_HOST=${WG_HOST}, CLOUDFLARE_API_TOKEN=******"
 
 # Create necessary directory for Docker Compose
 mkdir -p /opt/wg-easy/wg-data

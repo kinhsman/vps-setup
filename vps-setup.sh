@@ -29,7 +29,7 @@ echo "Installing Tailscale..."
 echo -e "${GREEN}Please enter your Tailscale auth key:${NC}"
 read -p "Auth key: " TAILSCALE_AUTH_KEY
 curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes=true
+sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes
 
 # 4. Create directory for wg-easy
 echo "Creating directory structure..."

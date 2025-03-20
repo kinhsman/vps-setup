@@ -1,13 +1,14 @@
 #!/bin/bash
 
-set -e
-
-# Prompt user for VPS domain name
-read -p "Enter the public domain name of the VPS: " WG_HOST
+set -e  # Exit on error
 
 # Update and upgrade system packages
-echo "Updating and upgrading system packages..."
+echo "Updating system packages..."
 apt update && apt upgrade -y
+
+# Install required dependencies
+echo "Installing required dependencies..."
+apt install -y curl
 
 # Install Docker
 echo "Installing Docker..."
@@ -17,13 +18,19 @@ curl -fsSL https://get.docker.com | sh
 echo "Installing Docker Compose..."
 apt install -y docker-compose-plugin
 
-# Create directory for compose stack
-echo "Creating directory /opt/wg-easy..."
+# Prompt user for VPS domain and Cloudflare API token
+read -p "Enter the public domain name or IP of the VPS: " WG_HOST
+read -s -p "Enter your Cloudflare API Token: " CLOUDFLARE_API_TOKEN
+echo ""  # Newline after silent input
+
+# Create necessary directory for Docker Compose
 mkdir -p /opt/wg-easy
+cd /opt/wg-easy || exit
 
 # Create docker-compose.yml file
-echo "Creating docker-compose.yml file..."
-cat > /opt/wg-easy/docker-compose.yml <<EOL
+cat <<EOF > docker-compose.yml
+version: '3'
+
 services:
   wg-easy:
     container_name: wg-easy
@@ -47,10 +54,22 @@ services:
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
       - net.ipv4.ip_forward=1
-EOL
 
-# Start the Docker Compose stack
-echo "Starting wg-easy service using Docker Compose..."
-docker compose -f /opt/wg-easy/docker-compose.yml up -d
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:latest
+    network_mode: host
+    restart: always
+    container_name: cloudflare-ddns
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
+      DOMAINS: ${WG_HOST}
+      PROXIED: 'false'
+      UPDATE_CRON: "@every 1m"
+      IP6_PROVIDER: 'none'
+EOF
 
-echo "wg-easy deployment complete!"
+# Start the Docker Compose service
+echo "Starting containers..."
+docker compose up -d --force-recreate
+
+echo "WireGuard Easy and Cloudflare DDNS setup complete!"

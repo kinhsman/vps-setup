@@ -50,36 +50,18 @@ sudo apt update
 # Use -y for automatic yes, and -o options to avoid config file prompts
 sudo apt upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
 
-# 4. Install Docker
+# 4. Install Docker and docker-compose-plugin
 echo "Installing Docker..."
 curl -fsSL https://get.docker.com | sh
+# Ensure docker-compose-plugin is installed (required for 'docker compose' command)
+sudo apt install -y docker-compose-plugin
 
-# 5. Install Tailscale
-echo "Installing Tailscale..."
-
-# Check if TAILSCALE_AUTH_KEY is provided as an environment variable
-if [ -z "$TAILSCALE_AUTH_KEY" ]; then
-    # If running interactively, prompt for the auth key
-    if [ -t 0 ]; then
-        echo -e "${GREEN}Please enter your Tailscale auth key:${NC}"
-        read -p "Auth key: " TAILSCALE_AUTH_KEY
-    else
-        echo -e "${RED}Error: TAILSCALE_AUTH_KEY environment variable not set and script is running non-interactively.${NC}"
-        echo "Please set the TAILSCALE_AUTH_KEY environment variable and try again."
-        echo "Example: TAILSCALE_AUTH_KEY=your-auth-key curl -fsSL <script-url> | sh"
-        exit 1
-    fi
-fi
-
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up --auth-key="$TAILSCALE_AUTH_KEY" --accept-routes=true
-
-# 6. Create directory for wg-easy
+# 5. Create directory for wg-easy
 echo "Creating directory structure..."
 sudo mkdir -p /opt/wg-easy
 cd /opt/wg-easy
 
-# 7. Get server IP/domain
+# 6. Get server IP/domain
 # Check if SERVER_HOST is provided as an environment variable
 if [ -z "$SERVER_HOST" ]; then
     # If running interactively, prompt for the server host
@@ -111,7 +93,7 @@ services:
     volumes:
       - ~/.wg-easy:/etc/wireguard
     ports:
-      - "51820:51820/udp"
+      - "65222:65222/udp"
       - "51821:51821/tcp"
     cap_add:
       - NET_ADMIN
@@ -125,16 +107,16 @@ EOF
 # Ensure the wg-easy volume directory exists
 mkdir -p ~/.wg-easy
 
-# 8. Run the container
+# 7. Run the container
 echo "Starting wg-easy container..."
 docker compose up -d
 
 echo -e "${GREEN}Setup complete!${NC}"
-echo "wg-easy should now be running on port 51821"
+echo "wg-easy is now running on port 51821"
 echo "Access it at: http://${SERVER_HOST}:51821"
-echo "Default password is encrypted in the config - use the corresponding plaintext password"
+echo "Default password for wg-easy is 'admin' (corresponding to the provided hash)"
 
-# 9. Re-enable automatic updates (optional)
+# 8. Re-enable automatic updates (optional)
 echo "Re-enabling automatic updates..."
 sudo systemctl enable unattended-upgrades || true
 sudo systemctl start unattended-upgrades || true

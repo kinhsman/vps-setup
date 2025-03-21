@@ -12,10 +12,6 @@ validate_input() {
         echo "Error: Cloudflare API token cannot be empty"
         exit 1
     fi
-    if [[ -z "$WG_PASSWORD" ]]; then
-        echo "Error: Password cannot be empty"
-        exit 1
-    fi
 }
 
 # Prompt user for input at the beginning
@@ -23,9 +19,6 @@ echo "Enter the public domain name or IP of the VPS:"
 read -p "Domain/IP: " WG_HOST
 echo "Enter your Cloudflare API Token (input will be hidden):"
 read -s -p "Token: " CLOUDFLARE_API_TOKEN
-echo -e "\n"  # Ensure newline after silent input
-echo "Enter the password for wg-easy (input will be hidden):"
-read -s -p "Password: " WG_PASSWORD
 echo -e "\n"  # Ensure newline after silent input
 
 # Validate the inputs
@@ -40,8 +33,8 @@ fi
 
 # Install required dependencies
 echo "Installing required dependencies..."
-if ! apt install -y curl apache2-utils; then
-    echo "Error: Failed to install dependencies (curl and apache2-utils)"
+if ! apt install -y curl; then
+    echo "Error: Failed to install dependencies"
     exit 1
 fi
 
@@ -76,14 +69,6 @@ if ! systemctl is-active --quiet docker; then
     fi
 fi
 
-# Generate bcrypt hash for the password
-echo "Generating password hash..."
-WG_PASSWORD_HASH=$(htpasswd -bnBC 12 "" "$WG_PASSWORD" | tail -n 1)
-if [[ -z "$WG_PASSWORD_HASH" ]]; then
-    echo "Error: Failed to generate password hash"
-    exit 1
-fi
-
 # Create necessary directory with error handling
 echo "Creating configuration directory..."
 if ! mkdir -p /opt/wg-easy/wg-data 2>/dev/null; then
@@ -110,7 +95,7 @@ services:
     environment:
       - LANG=en
       - WG_HOST=${WG_HOST}
-      - PASSWORD_HASH=${WG_PASSWORD_HASH}
+      - PASSWORD_HASH=$2a$12$o7iDxKq3rQHPhJ/JuqUZDu0pakCKhR4GBzsBxt/qO5yCkXWY2U1k2
       - PORT=51821
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com
@@ -154,5 +139,5 @@ fi
 
 echo "WireGuard Easy setup completed successfully!"
 echo "Access the web interface at http://${WG_HOST}:51821"
-echo "Login using the password you provided"
+echo "Login with username 'admin' and password 'admin' (default credentials for this hash)"
 echo "WireGuard VPN is running on port 65222/UDP"

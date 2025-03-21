@@ -2,48 +2,90 @@
 
 set -e  # Exit on error
 
-# Prompt user for input at the very beginning
-read -p "Enter the public domain name or IP of the VPS: " WG_HOST
+# Function to validate input
+validate_input() {
+    if [[ -z "$WG_HOST" ]]; then
+        echo "Error: Domain name or IP cannot be empty"
+        exit 1
+    fi
+    if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
+        echo "Error: Cloudflare API token cannot be empty"
+        exit 1
+    fi
+}
+
+# Prompt user for input at the beginning
+echo "Enter the public domain name or IP of the VPS:"
+read -p "Domain/IP: " WG_HOST
 echo "Enter your Cloudflare API Token (input will be hidden):"
 read -s -p "Token: " CLOUDFLARE_API_TOKEN
 echo -e "\n"  # Ensure newline after silent input
 
-# Debugging (remove this after verifying inputs)
-echo "DEBUG: WG_HOST=${WG_HOST}, CLOUDFLARE_API_TOKEN=******"
+# Validate the inputs
+validate_input
 
 # Update and upgrade system packages
 echo "Updating system packages..."
-apt update && DEBIAN_FRONTEND=noninteractive apt upgrade -y
+if ! apt update || ! DEBIAN_FRONTEND=noninteractive apt upgrade -y; then
+    echo "Error: Failed to update system packages"
+    exit 1
+fi
 
 # Install required dependencies
 echo "Installing required dependencies..."
-apt install -y curl
+if ! apt install -y curl; then
+    echo "Error: Failed to install dependencies"
+    exit 1
+fi
 
 # Install Docker if not already installed
 if ! command -v docker &> /dev/null; then
     echo "Installing Docker..."
-    curl -fsSL https://get.docker.com | sh
+    if ! curl -fsSL https://get.docker.com | sh; then
+        echo "Error: Failed to install Docker"
+        exit 1
+    fi
 else
     echo "Docker is already installed."
 fi
 
-# Ensure Docker is running
-systemctl is-active --quiet docker || systemctl start docker
-
-# Ensure Docker Compose (plugin) is installed
-if ! docker compose version &> /dev/null; then
-    echo "Docker Compose (plugin) is missing. Installing..."
-    apt install -y docker-compose-plugin
+# Install docker-compose if not already installed
+if ! command -v docker-compose &> /dev/null; then
+    echo "Installing docker-compose..."
+    if ! apt install -y docker-compose; then
+        echo "Error: Failed to install docker-compose"
+        exit 1
+    fi
 else
-    echo "Docker Compose (plugin) is already installed."
+    echo "docker-compose is already installed."
 fi
 
-# Create necessary directory for Docker Compose
-mkdir -p /opt/wg-easy/wg-data
-chmod 700 /opt/wg-easy/wg-data
-cd /opt/wg-easy || exit
+# Ensure Docker is running
+if ! systemctl is-active --quiet docker; then
+    echo "Starting Docker service..."
+    if ! systemctl start docker; then
+        echo "Error: Failed to start Docker service"
+        exit 1
+    fi
+fi
+
+# Create necessary directory with error handling
+echo "Creating configuration directory..."
+if ! mkdir -p /opt/wg-easy/wg-data 2>/dev/null; then
+    echo "Error: Failed to create directory /opt/wg-easy/wg-data"
+    exit 1
+fi
+if ! chmod 700 /opt/wg-easy/wg-data; then
+    echo "Error: Failed to set directory permissions"
+    exit 1
+fi
+if ! cd /opt/wg-easy; then
+    echo "Error: Failed to change to directory /opt/wg-easy"
+    exit 1
+fi
 
 # Create docker-compose.yml file
+echo "Creating docker-compose configuration..."
 cat <<EOF > docker-compose.yml
 services:
   wg-easy:
@@ -53,7 +95,7 @@ services:
     environment:
       - LANG=en
       - WG_HOST=${WG_HOST}
-      - PASSWORD_HASH=$$2a$$12$$o7iDxKq3rQHPhJ/JuqUZDu0pakCKhR4GBzsBxt/qO5yCkXWY2U1k2
+      - PASSWORD_HASH='$2a$12$o7iDxKq3rQHPhJ/JuqUZDu0pakCKhR4GBzsBxt/qO5yCkXWY2U1k2'
       - PORT=51821
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com
@@ -82,8 +124,19 @@ services:
       IP6_PROVIDER: 'none'
 EOF
 
-# Start the Docker Compose service using the new command
-echo "Starting wg-easy container..."
-docker compose up -d
+# Check if docker-compose file was created successfully
+if [[ ! -f docker-compose.yml ]]; then
+    echo "Error: Failed to create docker-compose.yml"
+    exit 1
+fi
 
-echo "WireGuard Easy setup complete!"
+# Start the Docker Compose service
+echo "Starting wg-easy and cloudflare-ddns containers..."
+if ! docker compose up -d; then
+    echo "Error: Failed to start containers"
+    exit 1
+fi
+
+echo "WireGuard Easy setup completed successfully!"
+echo "Access the web interface at http://${WG_HOST}:51821"
+echo "WireGuard VPN is running on port 65222/UDP"

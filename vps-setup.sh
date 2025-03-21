@@ -49,17 +49,6 @@ else
     echo "Docker is already installed."
 fi
 
-# Install docker-compose if not already installed
-if ! command -v docker-compose &> /dev/null; then
-    echo "Installing docker-compose..."
-    if ! apt install -y docker-compose; then
-        echo "Error: Failed to install docker-compose"
-        exit 1
-    fi
-else
-    echo "docker-compose is already installed."
-fi
-
 # Ensure Docker is running
 if ! systemctl is-active --quiet docker; then
     echo "Starting Docker service..."
@@ -84,60 +73,50 @@ if ! cd /opt/wg-easy; then
     exit 1
 fi
 
-# Create docker-compose.yml file with quoted EOF to prevent substitution
-echo "Creating docker-compose configuration..."
-cat <<'EOF' > docker-compose.yml
-services:
-  wg-easy:
-    container_name: wg-easy
-    image: ghcr.io/wg-easy/wg-easy
-    restart: always
-    environment:
-      - LANG=en
-      - WG_HOST=${WG_HOST}
-      - PASSWORD_HASH=$2a$12$o7iDxKq3rQHPhJ/JuqUZDu0pakCKhR4GBzsBxt/qO5yCkXWY2U1k2
-      - PORT=51821
-      - WG_PORT=65222
-      - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com
-    volumes:
-      - /opt/wg-easy/wg-data:/etc/wireguard
-    ports:
-      - "65222:65222/udp"
-      - "51821:51821/tcp"
-    cap_add:
-      - NET_ADMIN
-      - SYS_MODULE
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
-      - net.ipv4.ip_forward=1
- 
-  cloudflare-ddns:
-    image: favonia/cloudflare-ddns:latest
-    network_mode: host
-    restart: always
-    container_name: cloudflare-ddns
-    environment:
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN}
-      DOMAINS: ${WG_HOST}
-      PROXIED: 'false'
-      UPDATE_CRON: "@every 1m"
-      IP6_PROVIDER: 'none'
-EOF
+# Stop and remove any existing containers
+echo "Cleaning up any existing containers..."
+docker stop wg-easy cloudflare-ddns 2>/dev/null || true
+docker rm wg-easy cloudflare-ddns 2>/dev/null || true
 
-# Check if docker-compose file was created successfully
-if [[ ! -f docker-compose.yml ]]; then
-    echo "Error: Failed to create docker-compose.yml"
+# Run wg-easy container
+echo "Starting wg-easy container..."
+if ! docker run -d \
+    --name wg-easy \
+    --restart always \
+    -e LANG=en \
+    -e WG_HOST="${WG_HOST}" \
+    -e PASSWORD_HASH='$2a$12$o7iDxKq3rQHPhJ/JuqUZDu0pakCKhR4GBzsBxt/qO5yCkXWY2U1k2' \
+    -e PORT=51821 \
+    -e WG_PORT=65222 \
+    -e WG_DEFAULT_DNS="10.1.30.12, sangnetworks.com" \
+    -v /opt/wg-easy/wg-data:/etc/wireguard \
+    -p 65222:65222/udp \
+    -p 51821:51821/tcp \
+    --cap-add NET_ADMIN \
+    --cap-add SYS_MODULE \
+    --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+    --sysctl net.ipv4.ip_forward=1 \
+    ghcr.io/wg-easy/wg-easy; then
+    echo "Error: Failed to start wg-easy container"
     exit 1
 fi
 
-# Start the Docker Compose service
-echo "Starting wg-easy and cloudflare-ddns containers..."
-if ! docker compose up -d; then
-    echo "Error: Failed to start containers"
+# Run cloudflare-ddns container
+echo "Starting cloudflare-ddns container..."
+if ! docker run -d \
+    --name cloudflare-ddns \
+    --restart always \
+    --network host \
+    -e CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN}" \
+    -e DOMAINS="${WG_HOST}" \
+    -e PROXIED="false" \
+    -e UPDATE_CRON="@every 1m" \
+    -e IP6_PROVIDER="none" \
+    favonia/cloudflare-ddns:latest; then
+    echo "Error: Failed to start cloudflare-ddns container"
     exit 1
 fi
 
 echo "WireGuard Easy setup completed successfully!"
 echo "Access the web interface at http://${WG_HOST}:51821"
-echo "Login with username 'admin' and password 'admin' (default credentials for this hash)"
 echo "WireGuard VPN is running on port 65222/UDP"

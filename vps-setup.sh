@@ -12,6 +12,10 @@ validate_input() {
         echo "Error: Cloudflare API token cannot be empty"
         exit 1
     fi
+    if [[ -z "$WG_PASSWORD" ]]; then
+        echo "Error: Password cannot be empty"
+        exit 1
+    fi
 }
 
 # Prompt user for input at the beginning
@@ -19,6 +23,9 @@ echo "Enter the public domain name or IP of the VPS:"
 read -p "Domain/IP: " WG_HOST
 echo "Enter your Cloudflare API Token (input will be hidden):"
 read -s -p "Token: " CLOUDFLARE_API_TOKEN
+echo -e "\n"  # Ensure newline after silent input
+echo "Enter the password for wg-easy (input will be hidden):"
+read -s -p "Password: " WG_PASSWORD
 echo -e "\n"  # Ensure newline after silent input
 
 # Validate the inputs
@@ -84,7 +91,7 @@ if ! cd /opt/wg-easy; then
     exit 1
 fi
 
-# Create docker-compose.yml file
+# Create docker-compose.yml file with user-provided PASSWORD
 echo "Creating docker-compose configuration..."
 cat <<EOF > docker-compose.yml
 services:
@@ -95,7 +102,7 @@ services:
     environment:
       - LANG=en
       - WG_HOST=${WG_HOST}
-      - PASSWORD_HASH='$2a$12$8cMoE05ZtPkNKtiZ0YPdd.X9GC4HDv6/VfSHT3jZYBVRLvLnj.7AW'
+      - PASSWORD=${WG_PASSWORD}
       - PORT=51821
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com
@@ -139,4 +146,5 @@ fi
 
 echo "WireGuard Easy setup completed successfully!"
 echo "Access the web interface at http://${WG_HOST}:51821"
+echo "Login using the password you provided"
 echo "WireGuard VPN is running on port 65222/UDP"

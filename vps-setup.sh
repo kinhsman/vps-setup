@@ -40,8 +40,8 @@ fi
 
 # Install required dependencies
 echo "Installing required dependencies..."
-if ! apt install -y curl; then
-    echo "Error: Failed to install dependencies"
+if ! apt install -y curl apache2-utils; then
+    echo "Error: Failed to install dependencies (curl and apache2-utils)"
     exit 1
 fi
 
@@ -76,6 +76,14 @@ if ! systemctl is-active --quiet docker; then
     fi
 fi
 
+# Generate bcrypt hash for the password
+echo "Generating password hash..."
+WG_PASSWORD_HASH=$(htpasswd -bnBC 12 "" "$WG_PASSWORD" | tail -n 1)
+if [[ -z "$WG_PASSWORD_HASH" ]]; then
+    echo "Error: Failed to generate password hash"
+    exit 1
+fi
+
 # Create necessary directory with error handling
 echo "Creating configuration directory..."
 if ! mkdir -p /opt/wg-easy/wg-data 2>/dev/null; then
@@ -91,9 +99,9 @@ if ! cd /opt/wg-easy; then
     exit 1
 fi
 
-# Create docker-compose.yml file with user-provided PASSWORD
+# Create docker-compose.yml file with quoted EOF to prevent substitution
 echo "Creating docker-compose configuration..."
-cat <<EOF > docker-compose.yml
+cat <<'EOF' > docker-compose.yml
 services:
   wg-easy:
     container_name: wg-easy
@@ -102,7 +110,7 @@ services:
     environment:
       - LANG=en
       - WG_HOST=${WG_HOST}
-      - PASSWORD=${WG_PASSWORD}
+      - PASSWORD_HASH=${WG_PASSWORD_HASH}
       - PORT=51821
       - WG_PORT=65222
       - WG_DEFAULT_DNS=10.1.30.12, sangnetworks.com

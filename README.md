@@ -15,6 +15,11 @@ bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/vps
 bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/get-nordvpn-wireguard-config.sh)
 ```
 3. Create user kinhsman
+
 ```
-sudo bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/creating-kinhsman.sh)
+sudo -i
+```
+
+```
+bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/creating-kinhsman.sh)
 ```

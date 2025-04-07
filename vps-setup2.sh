@@ -118,5 +118,5 @@ if ! docker run -d \
 fi
 
 echo "WireGuard Easy setup completed successfully!"
-echo "Access the web interface at http://${WG_HOST}:51821"
+echo "Access the web interface at http://${WG_HOST}:51821 or http://${hostname}:51821"
 echo "WireGuard VPN is running on port 65222/UDP"

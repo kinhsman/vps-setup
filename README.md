@@ -1,6 +1,6 @@
 1. Install wg-easy, run the following:
 ```
-bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/vps-setup.sh)`
+bash <(wget -qO- https://raw.githubusercontent.com/kinhsman/vps-setup/master/vps-setup2.sh)
 ```
 
 2. Get NordVPN wireguard config:
